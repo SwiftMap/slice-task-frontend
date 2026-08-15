@@ -1,0 +1,11 @@
+# CI 构建产物 - 由 deploy.yml 自动下载
+lib/
+
+# 本地依赖
+node_modules/
+
+# 系统文件
+.DS_Store
+*.log
+.env
+.env.local

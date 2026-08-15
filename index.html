@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>切片任务管理系统</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f0f2f5;
+            min-height: 100vh;
+            color: rgba(0,0,0,0.85);
+        }
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+        .page-header {
+            background: #fff;
+            padding: 24px;
+            margin-bottom: 24px;
+            border-radius: 8px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+        }
+        .page-header h1 {
+            font-size: 24px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        .page-header p {
+            color: rgba(0,0,0,0.45);
+            font-size: 14px;
+        }
+        .task-card {
+            background: #fff;
+            border-radius: 8px;
+            padding: 20px 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+            border: 1px solid #f0f0f0;
+            transition: box-shadow 0.3s;
+        }
+        .task-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .task-title {
+            font-size: 16px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .status-tag {
+            display: inline-block;
+            padding: 2px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            line-height: 20px;
+        }
+        .status-completed {
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            color: #52c41a;
+        }
+        .status-processing {
+            background: #fffbe6;
+            border: 1px solid #ffe58f;
+            color: #faad14;
+        }
+        .status-pending {
+            background: #fafafa;
+            border: 1px solid #d9d9d9;
+            color: rgba(0,0,0,0.45);
+        }
+        .task-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 24px;
+            padding: 16px 0;
+            border-top: 1px solid #f0f0f0;
+        }
+        .stat-item .stat-title {
+            color: rgba(0,0,0,0.45);
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .stat-item .stat-value {
+            color: rgba(0,0,0,0.85);
+            font-size: 20px;
+            font-weight: 500;
+            word-break: break-word;
+        }
+        .stat-item .stat-value .unit {
+            font-size: 14px;
+            color: rgba(0,0,0,0.45);
+            margin-left: 4px;
+        }
+        .task-actions {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #f0f0f0;
+            text-align: right;
+        }
+        .btn {
+            display: inline-block;
+            padding: 6px 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        .btn-primary {
+            background: #1890ff;
+            color: #fff;
+            border-color: #1890ff;
+        }
+        .btn-primary:hover {
+            background: #40a9ff;
+            border-color: #40a9ff;
+        }
+        @media (max-width: 768px) {
+            .task-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <div class="page-header">
+            <h1>切片任务管理系统</h1>
+            <p>管理无人机影像切片任务，查看任务进度与详情</p>
+        </div>
+
+        <div id="task-list"></div>
+    </div>
+
+    <script>
+        // 模拟任务数据
+        const mockTasks = [
+            {
+                id: 'tumote_left_20250814',
+                name: '土默特左旗无人机切片任务',
+                province: '内蒙古自治区',
+                city: '呼和浩特市',
+                county: '土默特左旗',
+                taskTime: '2025-08-14',
+                villageCount: 34,
+                totalArea: 1850,
+                status: 'completed'
+            },
+            {
+                id: 'zhaohu_lian_20250528',
+                name: '皂户李镇皂户李联村切片任务',
+                province: '山东省',
+                city: '滨州市',
+                county: '惠民县',
+                town: '皂户李镇',
+                taskTime: '2025-05-28',
+                villageCount: 1,
+                totalArea: 18.34,
+                status: 'completed'
+            },
+            {
+                id: 'yanshichi_20250528',
+                name: '砚池山村切片任务',
+                province: '云南省',
+                city: '昭通市',
+                county: '鲁甸县',
+                town: '文屏镇',
+                taskTime: '2025-05-28',
+                villageCount: 2,
+                totalArea: 12.5,
+                status: 'completed'
+            },
+            {
+                id: 'tongliao_20250806',
+                name: '通辽扎鲁特旗西萨拉嘎查切片任务',
+                province: '内蒙古自治区',
+                city: '通辽市',
+                county: '扎鲁特旗',
+                taskTime: '2025-08-06',
+                villageCount: 1,
+                totalArea: 25.6,
+                status: 'completed'
+            }
+        ];
+
+        const statusMap = {
+            completed: { text: '已完成', class: 'status-completed' },
+            processing: { text: '处理中', class: 'status-processing' },
+            pending: { text: '待处理', class: 'status-pending' }
+        };
+
+        function renderTasks() {
+            const container = document.getElementById('task-list');
+            const html = mockTasks.map(task => {
+                const status = statusMap[task.status] || statusMap.pending;
+                const region = `${task.province} / ${task.city} / ${task.county}${task.town ? ' / ' + task.town : ''}`;
+                return `
+                    <div class="task-card">
+                        <div class="task-header">
+                            <div class="task-title">
+                                <span>${task.name}</span>
+                                <span class="status-tag ${status.class}">${status.text}</span>
+                            </div>
+                        </div>
+                        <div class="task-stats">
+                            <div class="stat-item">
+                                <div class="stat-title">任务时间</div>
+                                <div class="stat-value">${task.taskTime}</div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-title">村庄数量</div>
+                                <div class="stat-value">${task.villageCount}<span class="unit">个</span></div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-title">覆盖面积</div>
+                                <div class="stat-value">${task.totalArea}<span class="unit">km²</span></div>
+                            </div>
+                            <div class="stat-item">
+                                <div class="stat-title">行政区划</div>
+                                <div class="stat-value" style="font-size: 14px;">${region}</div>
+                            </div>
+                        </div>
+                        <div class="task-actions">
+                            <a href="/task.html?id=${task.id}" class="btn btn-primary">查看详情</a>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            container.innerHTML = html;
+        }
+
+        renderTasks();
+    </script>
+</body>
+</html>

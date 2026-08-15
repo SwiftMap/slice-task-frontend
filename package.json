@@ -1,0 +1,16 @@
+{
+  "name": "slice-task-frontend",
+  "version": "1.0.0",
+  "description": "切片任务管理前端项目",
+  "private": true,
+  "scripts": {
+    "dev": "node serve.js",
+    "start": "node serve.js"
+  },
+  "keywords": ["slice", "drone", "pmtiles", "map", "task"],
+  "author": "lzxue",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
