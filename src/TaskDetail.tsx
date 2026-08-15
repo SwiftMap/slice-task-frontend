@@ -179,20 +179,24 @@ export default function TaskDetail() {
     (async () => {
       try {
         const resp = await fetch(village.pmtilesUrl, {
-          headers: { Range: 'bytes=0-16383' },
+          headers: { Range: 'bytes=0-127' },
         });
         const buf = await resp.arrayBuffer();
-        const header = new TextDecoder().decode(new Uint8Array(buf, 7, 4));
-        const specVersion = new Uint8Array(buf, 7, 1)[0];
-        // PMTiles v3 header layout
+        const dv = new DataView(buf);
+        // PMTiles v3 header layout (实测 offset):
+        // - bytes 0-6: "PMTiles" magic
+        // - byte 7: spec version (3)
+        // - offset 102: min_lon_e7 (int32 LE) - verified by Python parsing
+        // - offset 106: min_lat_e7 (int32 LE)
+        // - offset 110: max_lon_e7 (int32 LE)
+        // - offset 114: max_lat_e7 (int32 LE)
+        const specVersion = dv.getUint8(7);
         let minLon = 0, minLat = 0, maxLon = 0, maxLat = 0;
         if (specVersion === 3) {
-          const dv = new DataView(buf);
-          // v3: offset 8 = min_lon_e7 (int32 LE)
-          minLon = dv.getInt32(8, true) / 1e7;
-          minLat = dv.getInt32(12, true) / 1e7;
-          maxLon = dv.getInt32(16, true) / 1e7;
-          maxLat = dv.getInt32(20, true) / 1e7;
+          minLon = dv.getInt32(102, true) / 1e7;
+          minLat = dv.getInt32(106, true) / 1e7;
+          maxLon = dv.getInt32(110, true) / 1e7;
+          maxLat = dv.getInt32(114, true) / 1e7;
         }
 
         // 添加 raster 源
