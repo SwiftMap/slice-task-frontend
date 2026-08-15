@@ -21,8 +21,9 @@ export interface Task {
   villages: Village[];
 }
 
-const BOUNDARY_URL =
-  'https://flash-map-web.oss-cn-beijing.aliyuncs.com/bianjie.pmtiles';
+// 村界 PMTiles (参考 dronemap: helper.ts line 66)
+const BOUNDARY_PMTILES_URL =
+  'https://flash-map-web.oss-cn-beijing.aliyuncs.com/data/bianjie.pmtiles';
 
 export const mockTasks: Task[] = [
   {
@@ -36,7 +37,7 @@ export const mockTasks: Task[] = [
     totalArea: 1850,
     status: 'completed',
     center: [111.4, 40.6],
-    boundaryPmtilesUrl: BOUNDARY_URL,
+    boundaryPmtilesUrl: BOUNDARY_PMTILES_URL,
     villages: [
       {
         id: 'sanliang',
@@ -64,7 +65,7 @@ export const mockTasks: Task[] = [
     totalArea: 18.34,
     status: 'completed',
     center: [117.5, 37.4],
-    boundaryPmtilesUrl: BOUNDARY_URL,
+    boundaryPmtilesUrl: BOUNDARY_PMTILES_URL,
     villages: [
       {
         id: 'zaohu_lian',
@@ -86,7 +87,7 @@ export const mockTasks: Task[] = [
     totalArea: 12.5,
     status: 'completed',
     center: [103.5, 27.2],
-    boundaryPmtilesUrl: BOUNDARY_URL,
+    boundaryPmtilesUrl: BOUNDARY_PMTILES_URL,
     villages: [
       {
         id: 'yanchi_shan_cun',
@@ -113,7 +114,7 @@ export const mockTasks: Task[] = [
     totalArea: 25.6,
     status: 'completed',
     center: [120.9, 44.5],
-    boundaryPmtilesUrl: BOUNDARY_URL,
+    boundaryPmtilesUrl: BOUNDARY_PMTILES_URL,
     villages: [
       {
         id: 'xila_gacha',

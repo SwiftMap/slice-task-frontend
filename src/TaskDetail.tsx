@@ -89,34 +89,54 @@ export default function TaskDetail() {
     map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
 
     map.on('load', () => {
-      // 添加村界矢量（PMTiles）
-      if (task.boundaryPmtilesUrl) {
-        try {
-          map.addSource('village-boundary', {
-            type: 'vector',
-            url: `pmtiles://${task.boundaryPmtilesUrl}`,
-          });
-          // 注意：实际图层配置依赖 PMTiles 中的字段名
-          // 这里给一个通用尝试，失败也不影响其他图层
-          try {
-            map.addLayer({
-              id: 'village-boundary-line',
-              type: 'line',
-              source: 'village-boundary',
-              'source-layer': 'villages',
-              paint: {
-                'line-color': '#ff4d4f',
-                'line-width': 1.5,
-                'line-opacity': 0.8,
-              },
-            });
-          } catch {
-            /* 字段名可能不同 */
+// 添加村界矢量（PMTiles）- 参考 dronemap helper.ts 第92-110行
+          // source-layer 'cunjie' 是 bianjie.pmtiles 的实际图层名
+          if (task.boundaryPmtilesUrl) {
+            try {
+              map.addSource('village-boundary', {
+                type: 'vector',
+                url: `pmtiles://${task.boundaryPmtilesUrl}`,
+              });
+              try {
+                map.addLayer({
+                  id: 'village-boundary-line',
+                  type: 'line',
+                  source: 'village-boundary',
+                  'source-layer': 'cunjie',
+                  paint: {
+                    'line-color': '#e64009ff',
+                    'line-width': 2,
+                    'line-opacity': 0.85,
+                  },
+                });
+                // 添加村名标注（用 'name' 字段）
+                try {
+                  map.addLayer({
+                    id: 'village-boundary-label',
+                    type: 'symbol',
+                    source: 'village-boundary',
+                    'source-layer': 'cunjie',
+                    layout: {
+                      'text-field': ['get', 'name'],
+                      'text-size': 11,
+                      'text-allow-overlap': false,
+                    },
+                    paint: {
+                      'text-color': '#c41d7f',
+                      'text-halo-color': '#fff',
+                      'text-halo-width': 1.5,
+                    },
+                  });
+                } catch (e) {
+                  console.warn('村名标注图层加载失败:', e);
+                }
+              } catch (e) {
+                console.warn('村界线图层加载失败:', e);
+              }
+            } catch (e) {
+              console.warn('村界加载失败:', e);
+            }
           }
-        } catch (e) {
-          console.warn('村界加载失败:', e);
-        }
-      }
       setMapReady(true);
     });
 
