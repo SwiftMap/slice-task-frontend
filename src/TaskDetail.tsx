@@ -70,6 +70,7 @@ export default function TaskDetail() {
   const [selectedVillage, setSelectedVillage] = useState<string>('');
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
+  const markerRef = useRef<maplibregl.Marker | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
@@ -147,6 +148,10 @@ export default function TaskDetail() {
     mapRef.current = map;
 
     return () => {
+      if (markerRef.current) {
+        markerRef.current.remove();
+        markerRef.current = null;
+      }
       map.remove();
       mapRef.current = null;
     };
@@ -215,39 +220,34 @@ export default function TaskDetail() {
           paint: { 'raster-opacity': 0.9 },
         });
 
-        // 添加村庄名称标注（中心点 + 文字）
+        // 添加村庄名称标注（用 HTML Marker，不依赖 glyphs）
         const centerLon = (minLon + maxLon) / 2;
         const centerLat = (minLat + maxLat) / 2;
-        map.addSource('village-label', {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: [centerLon, centerLat],
-            },
-            properties: { name: village.name },
-          },
-        });
-        map.addLayer({
-          id: 'village-label',
-          type: 'symbol',
-          source: 'village-label',
-          layout: {
-            'text-field': ['get', 'name'],
-            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-            'text-size': 22,
-            'text-anchor': 'center',
-            'text-allow-overlap': true,
-            'text-ignore-placement': true,
-          },
-          paint: {
-            'text-color': '#ffeb3b',
-            'text-halo-color': '#000',
-            'text-halo-width': 3,
-            'text-halo-blur': 1,
-          },
-        });
+        const el = document.createElement('div');
+        el.className = 'village-label-marker';
+        el.textContent = village.name;
+        el.style.cssText = `
+          position: absolute;
+          background: rgba(0, 0, 0, 0.75);
+          color: #ffeb3b;
+          padding: 4px 10px;
+          border-radius: 4px;
+          font-size: 14px;
+          font-weight: bold;
+          white-space: nowrap;
+          pointer-events: none;
+          transform: translate(-50%, -50%);
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+          border: 1px solid rgba(255, 235, 59, 0.5);
+        `;
+        // 移除旧的 marker
+        if (markerRef.current) {
+          markerRef.current.remove();
+        }
+        const marker = new maplibregl.Marker({ element: el })
+          .setLngLat([centerLon, centerLat])
+          .addTo(map);
+        markerRef.current = marker;
 
         // 自动缩放到村庄 bounds
         if (minLon !== maxLon && minLat !== maxLat) {
