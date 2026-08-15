@@ -93,6 +93,8 @@ jobs:
           SERVER_PORT: '22'
           SERVER_USER: 'root'
           TARGET_DIR: '/var/www/html/task'
+          # Hardcoded password (写死) — SECURITY RISK: this will store password in repo
+          SSH_PASSWORD: 'shanturoot123.'
         run: |
           set -e
           mkdir -p ~/.ssh
