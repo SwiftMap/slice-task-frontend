@@ -59,6 +59,7 @@ jobs:
           SERVER_PORT: '22'
           SERVER_USER: 'root'
           TARGET_DIR: '/var/www/html/task'
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
         run: |
           set -e
           mkdir -p ~/.ssh
