@@ -152,7 +152,7 @@ export default function TaskDetail() {
     };
   }, [task?.id]);
 
-  // 切换选中村庄时，加载该村庄的 PMTiles
+  // 切换选中村庄时，加载该村庄的 PMTiles 并自动缩放到该村庄的边界
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !task || !mapReady || !selectedVillage) return;
@@ -167,25 +167,115 @@ export default function TaskDetail() {
     if (map.getSource(sourceId)) {
       map.removeSource(sourceId);
     }
-
-    try {
-      map.addSource(sourceId, {
-        type: 'raster',
-        tiles: [`${village.pmtilesUrl}`],
-        tileSize: 256,
-        bounds: undefined,
-      });
-      map.addLayer({
-        id: `${sourceId}-raster`,
-        type: 'raster',
-        source: sourceId,
-        minzoom: 0,
-        maxzoom: 22,
-        paint: { 'raster-opacity': 0.9 },
-      });
-    } catch (e) {
-      console.warn('村庄 PMTiles 加载失败:', e);
+    // 移除旧的村庄名称标注
+    if (map.getLayer('village-label')) {
+      map.removeLayer('village-label');
     }
+    if (map.getSource('village-label')) {
+      map.removeSource('village-label');
+    }
+
+    // 先尝试读取 PMTiles metadata 获取真实 bounds
+    (async () => {
+      try {
+        const resp = await fetch(village.pmtilesUrl, {
+          headers: { Range: 'bytes=0-16383' },
+        });
+        const buf = await resp.arrayBuffer();
+        const header = new TextDecoder().decode(new Uint8Array(buf, 7, 4));
+        const specVersion = new Uint8Array(buf, 7, 1)[0];
+        // PMTiles v3 header layout
+        let minLon = 0, minLat = 0, maxLon = 0, maxLat = 0;
+        if (specVersion === 3) {
+          const dv = new DataView(buf);
+          // v3: offset 8 = min_lon_e7 (int32 LE)
+          minLon = dv.getInt32(8, true) / 1e7;
+          minLat = dv.getInt32(12, true) / 1e7;
+          maxLon = dv.getInt32(16, true) / 1e7;
+          maxLat = dv.getInt32(20, true) / 1e7;
+        }
+
+        // 添加 raster 源
+        map.addSource(sourceId, {
+          type: 'raster',
+          tiles: [`${village.pmtilesUrl}`],
+          tileSize: 256,
+          bounds: [minLon, minLat, maxLon, maxLat],
+        });
+        map.addLayer({
+          id: `${sourceId}-raster`,
+          type: 'raster',
+          source: sourceId,
+          minzoom: 0,
+          maxzoom: 22,
+          paint: { 'raster-opacity': 0.9 },
+        });
+
+        // 添加村庄名称标注（中心点 + 文字）
+        const centerLon = (minLon + maxLon) / 2;
+        const centerLat = (minLat + maxLat) / 2;
+        map.addSource('village-label', {
+          type: 'geojson',
+          data: {
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [centerLon, centerLat],
+            },
+            properties: { name: village.name },
+          },
+        });
+        map.addLayer({
+          id: 'village-label',
+          type: 'symbol',
+          source: 'village-label',
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-size': 16,
+            'text-anchor': 'center',
+            'text-allow-overlap': true,
+            'text-ignore-placement': true,
+          },
+          paint: {
+            'text-color': '#ffeb3b',
+            'text-halo-color': '#000',
+            'text-halo-width': 2,
+            'text-halo-blur': 1,
+          },
+        });
+
+        // 自动缩放到村庄 bounds
+        if (minLon !== maxLon && minLat !== maxLat) {
+          map.fitBounds(
+            [
+              [minLon, minLat],
+              [maxLon, maxLat],
+            ],
+            { padding: 50, duration: 1500, maxZoom: 17 }
+          );
+        }
+      } catch (e) {
+        console.warn('村庄 PMTiles metadata 读取失败:', e);
+        // 降级：仅加载栅格，不缩放
+        try {
+          map.addSource(sourceId, {
+            type: 'raster',
+            tiles: [`${village.pmtilesUrl}`],
+            tileSize: 256,
+          });
+          map.addLayer({
+            id: `${sourceId}-raster`,
+            type: 'raster',
+            source: sourceId,
+            minzoom: 0,
+            maxzoom: 22,
+            paint: { 'raster-opacity': 0.9 },
+          });
+        } catch (e2) {
+          console.warn('村庄 PMTiles 加载失败:', e2);
+        }
+      }
+    })();
   }, [selectedVillage, mapReady, task]);
 
   if (!task) {
