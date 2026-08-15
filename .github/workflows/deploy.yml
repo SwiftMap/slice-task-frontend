@@ -88,6 +88,7 @@ jobs:
           SERVER_USER: 'root'
           SERVER_PORT: '22'
           TARGET_DIR: '/var/www/html/task'
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
         run: |
           PORT="$SERVER_PORT"
           set -e
@@ -97,7 +98,7 @@ jobs:
           if ssh-add -l >/dev/null 2>&1; then
             scp -P "$PORT" slice-task.tar.gz "${SERVER_USER}@${SERVER_HOST}:${TARGET_DIR}/slice-task.tar.gz"
           else
-            sshpass -p 'shanturoot123.' scp -o StrictHostKeyChecking=no -P "$PORT" slice-task.tar.gz "${SERVER_USER}@${SERVER_HOST}:${TARGET_DIR}/slice-task.tar.gz"
+            sshpass -p "$SSH_PASSWORD" scp -o StrictHostKeyChecking=no -P "$PORT" slice-task.tar.gz "${SERVER_USER}@${SERVER_HOST}:${TARGET_DIR}/slice-task.tar.gz"
           fi
 
       - name: Extract on remote server
@@ -106,13 +107,14 @@ jobs:
           SERVER_USER: 'root'
           SERVER_PORT: '22'
           TARGET_DIR: '/var/www/html/task'
+          SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
         run: |
           PORT="$SERVER_PORT"
           echo "Extracting slice-task.tar.gz into ${TARGET_DIR}"
           if ssh-add -l >/dev/null 2>&1; then
             ssh -p "$PORT" "${SERVER_USER}@${SERVER_HOST}" "mkdir -p '${TARGET_DIR}' && tar -xzf '${TARGET_DIR}/slice-task.tar.gz' -C '${TARGET_DIR}' && rm -f '${TARGET_DIR}/slice-task.tar.gz' && echo 'Deployment complete' && ls -la '${TARGET_DIR}'"
           else
-            sshpass -p 'shanturoot123.' ssh -o StrictHostKeyChecking=no -p "$PORT" "${SERVER_USER}@${SERVER_HOST}" "mkdir -p '${TARGET_DIR}' && tar -xzf '${TARGET_DIR}/slice-task.tar.gz' -C '${TARGET_DIR}' && rm -f '${TARGET_DIR}/slice-task.tar.gz' && echo 'Deployment complete' && ls -la '${TARGET_DIR}'"
+            sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no -p "$PORT" "${SERVER_USER}@${SERVER_HOST}" "mkdir -p '${TARGET_DIR}' && tar -xzf '${TARGET_DIR}/slice-task.tar.gz' -C '${TARGET_DIR}' && rm -f '${TARGET_DIR}/slice-task.tar.gz' && echo 'Deployment complete' && ls -la '${TARGET_DIR}'"
           fi
 
       - name: Verify deployment
