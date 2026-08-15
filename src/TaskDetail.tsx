@@ -235,7 +235,8 @@ export default function TaskDetail() {
           source: 'village-label',
           layout: {
             'text-field': ['get', 'name'],
-            'text-size': 16,
+            'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+            'text-size': 22,
             'text-anchor': 'center',
             'text-allow-overlap': true,
             'text-ignore-placement': true,
@@ -243,7 +244,7 @@ export default function TaskDetail() {
           paint: {
             'text-color': '#ffeb3b',
             'text-halo-color': '#000',
-            'text-halo-width': 2,
+            'text-halo-width': 3,
             'text-halo-blur': 1,
           },
         });
