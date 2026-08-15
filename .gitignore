@@ -1,4 +1,7 @@
-# CI 构建产物 - 由 deploy.yml 自动下载
+# CI 构建产物
+dist/
+
+# CI 下载的本地依赖
 lib/
 
 # 本地依赖
@@ -9,3 +12,6 @@ node_modules/
 *.log
 .env
 .env.local
+
+# 部署包（本地打包后不需要提交）
+slice-task.tar.gz

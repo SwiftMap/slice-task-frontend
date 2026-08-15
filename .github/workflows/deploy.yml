@@ -23,69 +23,35 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          registry-url: 'https://registry.npmmirror.com'  # 国内镜像，避免网络问题
 
-      - name: Download frontend libraries to ./lib/
+      - name: Install dependencies
         run: |
-          mkdir -p lib
-          echo "Downloading frontend dependencies..."
+          echo "Using npmmirror registry for faster install in China"
+          npm config set registry https://registry.npmmirror.com
+          npm install --no-audit --no-fund
+        env:
+          # 兜底：使用国内镜像（包括可能用到的子依赖）
+          npm_config_strict_ssl: 'false'
 
-          # React & ReactDOM from bootcdn
-          curl -sLo lib/react.min.js https://cdn.bootcdn.net/ajax/libs/react/18.2.0/umd/react.production.min.js
-          curl -sLo lib/react-dom.min.js https://cdn.bootcdn.net/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js
-
-          # MapLibre GL from jsdelivr (CI 环境可以访问)
-          curl -sLo lib/maplibre-gl.js https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js
-          curl -sLo lib/maplibre-gl.css https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css
-
-          # PMTiles - 从 GitHub release 页面下载预构建的 UMD 版本
-          # PMTiles 官方不发布 UMD，但我们直接从 dist 文件获取 ESM 版本
-          curl -sLo lib/pmtiles.js https://cdn.jsdelivr.net/npm/pmtiles@3.2.1/dist/pmtiles.js || echo "Trying alternative..."
-
-          # 如果下载失败，从 GitHub releases / 源码构建
-          if [ ! -f lib/pmtiles.js ] || [ $(stat -c %s lib/pmtiles.js) -lt 1000 ]; then
-            echo "Downloading PMTiles from GitHub..."
-            cd /tmp
-            curl -sLo pmtiles.js https://protomaps.github.io/PMTiles/js/v3.2.1/pmtiles.js || \
-            curl -sLo pmtiles.js https://cdn.skypack.dev/pmtiles@3.2.1 || \
-            curl -sLo pmtiles.js "https://raw.githubusercontent.com/protomaps/PMTiles/v3.2.1/js/dist/index.js"
-            if [ -f pmtiles.js ] && [ $(stat -c %s pmtiles.js) -gt 1000 ]; then
-              cp pmtiles.js "$GITHUB_WORKSPACE/lib/pmtiles.js"
-            fi
-            cd "$GITHUB_WORKSPACE"
-          fi
-
-          # Verify downloads
-          echo "Downloaded files:"
-          ls -la lib/
-          for f in lib/react.min.js lib/react-dom.min.js lib/maplibre-gl.js lib/maplibre-gl.css; do
-            if [ -f "$f" ] && [ $(stat -c %s "$f") -gt 1000 ]; then
-              echo "✓ $f: $(stat -c %s $f) bytes"
-            else
-              echo "✗ $f: missing or too small"
-              cat "$f" 2>/dev/null
-              exit 1
-            fi
-          done
-          # PMTiles 是可选的 - 如果缺失,前端会自动降级
-          if [ -f lib/pmtiles.js ] && [ $(stat -c %s lib/pmtiles.js) -gt 1000 ]; then
-            echo "✓ lib/pmtiles.js: $(stat -c %s lib/pmtiles.js) bytes"
-          else
-            echo "⚠ lib/pmtiles.js: not available, PMTiles features will be disabled"
-          fi
-
-      - name: Verify project files
+      - name: Build with Vite
         run: |
-          echo "Project structure:"
-          ls -la
-          echo "---"
-          echo "Required files check:"
-          for f in index.html task.html; do
-            if [ ! -f "$f" ]; then
-              echo "ERROR: Missing $f"
-              exit 1
-            fi
-            echo "✓ $f ($(stat -c %s $f) bytes)"
-          done
+          echo "Building production bundle..."
+          npm run build
+          echo "Build output:"
+          ls -la dist/
+
+      - name: Verify build output
+        run: |
+          echo "Verifying build artifacts..."
+          if [ ! -d "dist/assets" ]; then
+            echo "ERROR: dist/assets not found"
+            exit 1
+          fi
+          echo "Built files:"
+          ls -la dist/
+          echo "--- Assets ---"
+          ls -la dist/assets/ | head -20
 
       - name: Prepare SSH
         env:
@@ -93,8 +59,6 @@ jobs:
           SERVER_PORT: '22'
           SERVER_USER: 'root'
           TARGET_DIR: '/var/www/html/task'
-          # Hardcoded password (写死) — SECURITY RISK: this will store password in repo
-          SSH_PASSWORD: 'shanturoot123.'
         run: |
           set -e
           mkdir -p ~/.ssh
@@ -118,7 +82,7 @@ jobs:
             exit 1
           fi
 
-      - name: Upload via scp
+      - name: Upload dist via scp
         env:
           SERVER_HOST: 'map.flashmap.cn'
           SERVER_USER: 'root'
@@ -127,9 +91,8 @@ jobs:
         run: |
           PORT="$SERVER_PORT"
           set -e
-          # 创建临时打包（包含 lib/ 目录）
-          tar -czf slice-task.tar.gz index.html task.html lib/
-
+          # 打包整个 dist 目录
+          tar -czf slice-task.tar.gz -C dist .
           echo "Uploading slice-task.tar.gz to ${SERVER_USER}@${SERVER_HOST}:${TARGET_DIR}"
           if ssh-add -l >/dev/null 2>&1; then
             scp -P "$PORT" slice-task.tar.gz "${SERVER_USER}@${SERVER_HOST}:${TARGET_DIR}/slice-task.tar.gz"

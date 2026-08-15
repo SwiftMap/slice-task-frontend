@@ -1,16 +1,25 @@
 {
   "name": "slice-task-frontend",
   "version": "1.0.0",
-  "description": "切片任务管理前端项目",
+  "description": "切片任务管理前端项目 - Vite + React + TypeScript + MapLibre GL",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "node serve.js",
-    "start": "node serve.js"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
   },
-  "keywords": ["slice", "drone", "pmtiles", "map", "task"],
-  "author": "lzxue",
-  "license": "ISC",
   "dependencies": {
-    "express": "^4.19.2"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "maplibre-gl": "^4.7.1",
+    "pmtiles": "^3.2.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10"
   }
 }

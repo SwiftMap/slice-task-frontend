@@ -1,80 +1,103 @@
-# 切片任务管理前端
+# 切片任务前端 (slice-task-frontend)
 
-无人机影像切片任务管理系统前端。
+无人机影像切片任务管理与可视化系统前端。
 
-## 功能
-- 任务列表首页：展示所有切片任务，支持查看统计信息（任务时间、村庄数量、覆盖面积、行政区划）
-- 任务详情页：显示任务信息、村界地图、村庄下拉选择切换不同村庄的无人机影像
+🌐 在线地址：https://task.flashmap.cn/
 
-## 技术栈
-- 纯静态HTML + React 18 UMD (CDN)
-- Ant Design (CDN)
-- MapLibre GL + PMTiles (CDN)
+## 🛠️ 技术栈
 
-## 本地开发
+- **构建工具**: Vite 5
+- **框架**: React 18 + TypeScript 5
+- **地图**: MapLibre GL JS 4.7
+- **数据协议**: PMTiles 3.2
+- **底图**: 天地图 (T=img_w + T=cva_w)
+
+## 📁 项目结构
+
+```
+slice-task-frontend/
+├── src/
+│   ├── main.tsx           # 首页入口 (Vite)
+│   ├── main-task.tsx      # 详情页入口 (Vite)
+│   ├── App.tsx            # 首页任务列表组件
+│   ├── TaskDetail.tsx     # 详情页含地图组件
+│   ├── data/tasks.ts      # 模拟任务数据
+│   └── styles/global.css  # 全局样式
+├── index.html             # 首页 HTML (Vite 入口)
+├── task.html              # 详情页 HTML (Vite 入口)
+├── vite.config.ts         # Vite 配置 (多页面)
+├── tsconfig.json          # TypeScript 配置
+├── package.json           # 依赖
+├── serve.js               # 本地预览服务器 (express)
+├── .github/workflows/
+│   └── deploy.yml         # GitHub Actions 自动部署
+└── README.md
+```
+
+## 🚀 部署流程 (CI)
+
+代码推送到 `main` 或 `master` 分支 → GitHub Actions 自动：
+
+1. 拉取代码
+2. 切换到 [npmmirror](https://registry.npmmirror.com) 镜像源
+3. `npm install` 安装依赖
+4. `npm run build` 用 Vite 构建生产产物（输出到 `dist/`）
+5. SCP 上传到 `120.55.47.148:/var/www/html/task/`
+6. 远程解压部署
+
+## 🖥️ 本地开发
+
+> ⚠️ **注意**：本地环境因为网络限制 `npm install` 通常会超时（境外npm被墙）。
+> 推荐直接通过 CI 部署后的线上版本调试，本地只做代码编辑。
+
+如果一定要本地跑：
 
 ```bash
-# 启动本地预览服务器 (端口 3000)
+# 1. 切换镜像
+npm config set registry https://registry.npmmirror.com
+
+# 2. 安装依赖（如果网络可达）
 npm install
-npm start
+
+# 3. 启动 Vite dev server
+npm run dev
+# 访问 http://localhost:3000/
 ```
 
-## 部署
+## 📊 当前已部署任务
 
-通过 GitHub Actions 自动部署到 `task.flashmap.cn`。
+| 任务 | 区域 | 状态 |
+|---|---|---|
+| 土默特左旗无人机切片任务 | 内蒙古 / 呼和浩特 / 土默特左旗 | 已完成 |
+| 皂户李镇皂户李联村切片任务 | 山东 / 滨州 / 惠民县 | 已完成 |
+| 砚池山村切片任务 | 云南 / 昭通 / 鲁甸县 | 已完成 |
+| 通辽扎鲁特旗西萨拉嘎查切片任务 | 内蒙古 / 通辽 / 扎鲁特旗 | 已完成 |
 
-- 服务器: `map.flashmap.cn` (120.55.47.148)
-- 部署路径: `/var/www/html/task/`
-- nginx配置: `/etc/nginx/sites-enabled/task.flashmap.cn.conf`
-- SSL: Let's Encrypt (自动续期)
+## 🔧 配置说明
 
-### 触发部署
-推送到 `main` 分支自动触发部署。
+### 天地图 Token
 
-### 手动触发
-在 GitHub Actions 页面点击 "Run workflow"。
-
-## 目录结构
-
+`src/TaskDetail.tsx` 中的 `TIANDITU_TOKEN`：
 ```
-.
-├── index.html          # 任务列表首页
-├── task.html           # 任务详情页
-├── README.md           # 本文件
-├── package.json        # Node.js 项目配置 (仅本地预览用)
-├── serve.js            # 本地预览服务器
-└── .github/workflows/  # GitHub Actions 配置
-    └── deploy.yml      # 自动部署配置
+b88bfb160c81dab8d9d20aaa74846360
 ```
 
-## API 集成
+如需更换，编辑该常量后重新部署即可。
 
-当前使用前端模拟数据。如需对接真实后端API：
-1. 修改 `index.html` 中的 `mockTasks` 数组为 `fetch('/api/tasks')`
-2. 修改 `task.html` 中的 `getTaskDetail()` 为 `fetch('/api/tasks/' + taskId)`
-3. 在 `task.html` 中修改 `villages` 数据的获取方式
+### PMTiles 协议
 
-## 任务数据结构
+通过 `pmtiles` 包的 `Protocol` 类注册到 maplibre-gl：
 
-```js
-{
-  id: 'tumote_left_20250814',
-  name: '土默特左旗无人机切片任务',
-  province: '内蒙古自治区',
-  city: '呼和浩特市',
-  county: '土默特左旗',
-  town: '',  // 可选
-  taskTime: '2025-08-14',  // YYYY-MM-DD
-  villageCount: 34,
-  totalArea: 1850,  // 单位 km²
-  center: [111.4, 40.6],  // 经度, 纬度
-  boundaryPmtilesUrl: 'https://flash-map-web.oss-cn-beijing.aliyuncs.com/bianjie.pmtiles',
-  villages: [
-    {
-      id: 'san_liang_cun',
-      name: '三两村',
-      pmtilesUrl: 'https://flash-map-web.oss-cn-beijing.aliyuncs.com/san_liang_cun.pmtiles'
-    }
-  ]
-}
+```typescript
+import { Protocol } from 'pmtiles';
+import maplibregl from 'maplibre-gl';
+
+const protocol = new Protocol();
+maplibregl.addProtocol('pmtiles', protocol.tile);
 ```
+
+之后即可用 `pmtiles://https://example.com/xxx.pmtiles` 作为 source URL。
+
+## 📝 License
+
+ISC
