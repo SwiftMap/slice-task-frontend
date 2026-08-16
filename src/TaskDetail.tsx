@@ -19,25 +19,35 @@ function ensurePMTilesProtocol() {
 }
 
 /**
- * 构造单村挖洞 mask：外环 = 影像 bounds 外扩，内环 = 该村 polygon 所有环（反转方向）。
- * fill nonzero 规则：村界外盖背景色，村界内透出影像。
+ * 构造单村挖洞 mask：外环 = polygon bbox 外扩（保证覆盖该村及周边背景），
+ * 内环 = 该村 polygon 所有环（反转方向）。fill nonzero 规则：村界外盖背景色，村界内透出影像。
+ *
+ * 设计原则（2026-08-17）：外环用 polygon 自身 bbox，不再依赖 PMTiles header bounds
+ * （header bounds 受 tile-snapping 影响，且不同 TIF bounds 差异大，统一用村 bbox 更稳）。
  */
-function buildMaskGeometry(
-  polygon: { type: string; coordinates: any },
-  imgBounds: [number, number, number, number]
-) {
-  // 收集该村所有环（Polygon / MultiPolygon），反转方向用于挖洞
+function buildMaskGeometry(polygon: { type: string; coordinates: any }) {
+  // 1. 收集该村所有环（Polygon / MultiPolygon），反转方向用于挖洞
   const rings: number[][][] = [];
   const polys =
     polygon.type === 'Polygon' ? [polygon.coordinates] : polygon.coordinates;
+  // 2. 同时算 polygon bbox（外环用）
+  let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+  const collect = (coord: number[][]) => {
+    for (const [lon, lat] of coord) {
+      if (lon < minLon) minLon = lon;
+      if (lat < minLat) minLat = lat;
+      if (lon > maxLon) maxLon = lon;
+      if (lat > maxLat) maxLat = lat;
+    }
+  };
   for (const poly of polys as any[]) {
     for (const ring of poly as number[][][]) {
       rings.push([...ring].reverse());
+      collect(ring as number[][]);
     }
   }
-  // 外环 = 影像 bounds 外扩（保证覆盖影像超出村界的部分）
-  const [minLon, minLat, maxLon, maxLat] = imgBounds;
-  const pad = 0.01; // ~1km
+  // 3. 外环 = polygon bbox 外扩 0.02°（~2km，保证 mask 覆盖屏幕 + 影像外溢部分）
+  const pad = 0.02;
   const outer = [
     [minLon - pad, minLat - pad],
     [maxLon + pad, minLat - pad],
@@ -311,14 +321,9 @@ export default function TaskDetail() {
       let beforeMaskId = map.getLayer('village-boundary-line')
         ? 'village-boundary-line'
         : undefined;
-      if (village.polygon && minLon !== maxLon && minLat !== maxLat) {
+      if (village.polygon) {
         try {
-          const maskFeature = buildMaskGeometry(village.polygon, [
-            minLon,
-            minLat,
-            maxLon,
-            maxLat,
-          ]);
+          const maskFeature = buildMaskGeometry(village.polygon);
           map.addSource('village-mask', {
             type: 'geojson',
             data: { type: 'FeatureCollection', features: [maskFeature] },
