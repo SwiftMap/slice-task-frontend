@@ -205,20 +205,28 @@ export default function TaskDetail() {
         }
 
         // 添加 raster 源（必须用 pmtiles:// 协议，否则 MapLibre 会把 .pmtiles 当成普通瓦片 URL 一直下载）
+        // 图层顺序：raster 影像在最下 → village-boundary-line（村界描边）→ village-boundary-label（村名）
+        // 通过 beforeId 指向村界图层，让 raster 影像插到村界之下
         map.addSource(sourceId, {
           type: 'raster',
           url: `pmtiles://${village.pmtilesUrl}`,
           tileSize: 256,
           bounds: [minLon, minLat, maxLon, maxLat],
         });
-        map.addLayer({
-          id: `${sourceId}-raster`,
-          type: 'raster',
-          source: sourceId,
-          minzoom: 0,
-          maxzoom: 22,
-          paint: { 'raster-opacity': 0.9 },
-        });
+        const beforeBoundaryId = map.getLayer('village-boundary-line')
+          ? 'village-boundary-line'
+          : undefined;
+        map.addLayer(
+          {
+            id: `${sourceId}-raster`,
+            type: 'raster',
+            source: sourceId,
+            minzoom: 0,
+            maxzoom: 22,
+            paint: { 'raster-opacity': 0.9 },
+          },
+          beforeBoundaryId,
+        );
 
         // 添加村庄名称标注（用 HTML Marker，不依赖 glyphs）
         const centerLon = (minLon + maxLon) / 2;
@@ -268,14 +276,21 @@ export default function TaskDetail() {
             url: `pmtiles://${village.pmtilesUrl}`,
             tileSize: 256,
           });
-          map.addLayer({
-            id: `${sourceId}-raster`,
-            type: 'raster',
-            source: sourceId,
-            minzoom: 0,
-            maxzoom: 22,
-            paint: { 'raster-opacity': 0.9 },
-          });
+          // 插到村界之下，让村界线 + 村名标注在影像上方
+          const beforeBoundaryId = map.getLayer('village-boundary-line')
+            ? 'village-boundary-line'
+            : undefined;
+          map.addLayer(
+            {
+              id: `${sourceId}-raster`,
+              type: 'raster',
+              source: sourceId,
+              minzoom: 0,
+              maxzoom: 22,
+              paint: { 'raster-opacity': 0.9 },
+            },
+            beforeBoundaryId,
+          );
         } catch (e2) {
           console.warn('村庄 PMTiles 加载失败:', e2);
         }
