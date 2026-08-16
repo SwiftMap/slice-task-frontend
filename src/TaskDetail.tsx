@@ -204,10 +204,10 @@ export default function TaskDetail() {
           maxLat = dv.getInt32(114, true) / 1e7;
         }
 
-        // 添加 raster 源
+        // 添加 raster 源（必须用 pmtiles:// 协议，否则 MapLibre 会把 .pmtiles 当成普通瓦片 URL 一直下载）
         map.addSource(sourceId, {
           type: 'raster',
-          tiles: [`${village.pmtilesUrl}`],
+          url: `pmtiles://${village.pmtilesUrl}`,
           tileSize: 256,
           bounds: [minLon, minLat, maxLon, maxLat],
         });
@@ -261,11 +261,11 @@ export default function TaskDetail() {
         }
       } catch (e) {
         console.warn('村庄 PMTiles metadata 读取失败:', e);
-        // 降级：仅加载栅格，不缩放
+        // 降级：仅加载栅格，不缩放（同样要用 pmtiles:// 协议）
         try {
           map.addSource(sourceId, {
             type: 'raster',
-            tiles: [`${village.pmtilesUrl}`],
+            url: `pmtiles://${village.pmtilesUrl}`,
             tileSize: 256,
           });
           map.addLayer({
