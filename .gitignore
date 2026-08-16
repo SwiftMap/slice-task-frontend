@@ -1,5 +1,6 @@
 # CI 构建产物
 dist/
+tsconfig.tsbuildinfo
 
 # CI 下载的本地依赖
 lib/
