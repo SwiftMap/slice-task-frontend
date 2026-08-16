@@ -9,11 +9,6 @@ export interface Village {
   pmtilesUrl: string;
   minZoom?: number;
   maxZoom?: number;
-  /** 可选 polygon 几何（用于村外 mask 显示） */
-  polygon?: {
-    type: 'Polygon' | 'MultiPolygon';
-    coordinates: number[][][] | number[][][][];
-  };
 }
 
 export interface Task {

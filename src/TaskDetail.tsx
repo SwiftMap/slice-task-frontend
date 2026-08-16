@@ -219,13 +219,6 @@ export default function TaskDetail() {
     if (map.getSource(sourceId)) {
       map.removeSource(sourceId);
     }
-    // 移除旧的 mask layer（村外灰色覆盖）
-    if (map.getLayer(`${sourceId}-mask`)) {
-      map.removeLayer(`${sourceId}-mask`);
-    }
-    if (map.getSource(`${sourceId}-mask`)) {
-      map.removeSource(`${sourceId}-mask`);
-    }
     // 移除旧的村庄名称标注
     if (map.getLayer('village-label')) {
       map.removeLayer('village-label');
@@ -281,75 +274,6 @@ export default function TaskDetail() {
           },
           beforeBoundaryId,
         );
-
-        // ===== 村外 mask：用反向 polygon（外圈大矩形 + 内圈村 polygon）减出村外区域 =====
-        if (village.polygon) {
-          try {
-            const v: any = village.polygon;
-            // 算村 polygon 的 bounds，外圈扩大 1°
-            let minLon = 180, minLat = 90, maxLon = -180, maxLat = -90;
-            const collect = (coord: number[][]) => {
-              for (const [lon, lat] of coord) {
-                if (lon < minLon) minLon = lon;
-                if (lat < minLat) minLat = lat;
-                if (lon > maxLon) maxLon = lon;
-                if (lat > maxLat) maxLat = lat;
-              }
-            };
-            if (v.type === 'Polygon') {
-              for (const ring of v.coordinates as number[][][]) collect(ring);
-            } else if (v.type === 'MultiPolygon') {
-              for (const poly of v.coordinates as number[][][][]) for (const ring of poly) collect(ring);
-            }
-            const padLon = 1.0, padLat = 1.0;
-            const outerRing: number[][] = [
-              [minLon - padLon, minLat - padLat],
-              [maxLon + padLon, minLat - padLat],
-              [maxLon + padLon, maxLat + padLat],
-              [minLon - padLon, maxLat + padLat],
-              [minLon - padLon, minLat - padLat],
-            ];
-            // mask: 第一环外圈大矩形 + 村 polygon 内圈
-            let maskPolygon: any;
-            if (v.type === 'Polygon') {
-              maskPolygon = {
-                type: 'Polygon',
-                coordinates: [outerRing, ...v.coordinates],
-              };
-            } else {
-              maskPolygon = {
-                type: 'Polygon',
-                coordinates: [outerRing, ...v.coordinates.flat()],
-              };
-            }
-            map.addSource(`${sourceId}-mask`, {
-              type: 'geojson',
-              data: {
-                type: 'Feature',
-                properties: {},
-                geometry: maskPolygon,
-              },
-            });
-            // 插在 raster 上、村界线下
-            const beforeMaskId = map.getLayer('village-boundary-line')
-              ? 'village-boundary-line'
-              : undefined;
-            map.addLayer(
-              {
-                id: `${sourceId}-mask`,
-                type: 'fill',
-                source: `${sourceId}-mask`,
-                paint: {
-                  'fill-color': '#000000',
-                  'fill-opacity': 0.55,
-                },
-              },
-              beforeMaskId
-            );
-          } catch (e) {
-            console.warn('村外 mask 加载失败:', e);
-          }
-        }
 
         // 添加村庄名称标注（用 HTML Marker，不依赖 glyphs）
         const centerLon = (minLon + maxLon) / 2;
