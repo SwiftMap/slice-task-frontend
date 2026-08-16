@@ -1,4 +1,16 @@
-// 模拟任务数据 - 实际项目应从后端API获取
+// 任务数据种子（编译时使用）
+// 实际生产：前端通过 fetch 从 OSS 加载，前端入口在 src/data/api.ts
+// 编译脚本：scripts/build_tasks.py
+//
+// ⚠️ 当本文件改动后，需要运行：
+//   python3 scripts/build_tasks.py
+// 然后：
+//   ossutil cp /data/oss_build/tasks/*.json oss://flash-map-web/data/tasks/
+
+// 村界 PMTiles (参考 dronemap: helper.ts line 66)
+const BOUNDARY_PMTILES_URL =
+  'https://flash-map-web.oss-cn-beijing.aliyuncs.com/data/bianjie.pmtiles';
+
 export interface Village {
   id: string;
   name: string;
@@ -24,10 +36,6 @@ export interface Task {
   /** 聚合 zoom 范围（min-max），从 villages.minZoom/maxZoom 聚合 */
   zoomRange?: string;
 }
-
-// 村界 PMTiles (参考 dronemap: helper.ts line 66)
-const BOUNDARY_PMTILES_URL =
-  'https://flash-map-web.oss-cn-beijing.aliyuncs.com/data/bianjie.pmtiles';
 
 export const mockTasks: Task[] = [
   {
@@ -56,36 +64,3 @@ export const mockTasks: Task[] = [
     zoomRange: '9-20',
   },
 ];
-
-const statusMap: Record<
-  Task['status'],
-  { text: string; className: string }
-> = {
-  completed: { text: '已完成', className: 'status-completed' },
-  processing: { text: '处理中', className: 'status-processing' },
-  pending: { text: '待处理', className: 'status-pending' },
-};
-
-export function getTaskById(id: string | null): Task | null {
-  if (!id) return null;
-  return mockTasks.find((t) => t.id === id) ?? null;
-}
-
-export function getStatusInfo(status: Task['status']) {
-  return statusMap[status] || statusMap.pending;
-}
-
-/**
- * 从 villages 聚合 zoom 范围。若 task.zoomRange 已显式设置则优先返回。
- * @returns "minZoom-maxZoom" 或 undefined
- */
-export function getZoomRange(task: Task): string | undefined {
-  if (task.zoomRange) return task.zoomRange;
-  const zooms = task.villages
-    .map((v) => [v.minZoom, v.maxZoom])
-    .filter((z): z is [number, number] => typeof z[0] === 'number' && typeof z[1] === 'number');
-  if (zooms.length === 0) return undefined;
-  const min = Math.min(...zooms.map((z) => z[0]));
-  const max = Math.max(...zooms.map((z) => z[1]));
-  return `${min}-${max}`;
-}

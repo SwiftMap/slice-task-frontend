@@ -1,18 +1,41 @@
-import { useMemo, useState } from 'react';
-import type { Task } from './data/tasks';
-import { getStatusInfo, getZoomRange } from './data/tasks';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  fetchTasksList,
+  getStatusInfo,
+  type TaskListItem,
+} from './data/api';
 
-interface Props {
-  tasks: Task[];
-}
+type LoadState =
+  | { kind: 'loading' }
+  | { kind: 'ok'; tasks: TaskListItem[] }
+  | { kind: 'error'; message: string };
 
 const PAGE_SIZE = 20;
 
-export default function App({ tasks }: Props) {
+export default function App() {
   const [page, setPage] = useState(1);
+  const [state, setState] = useState<LoadState>({ kind: 'loading' });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchTasksList()
+      .then((tasks) => {
+        if (!cancelled) setState({ kind: 'ok', tasks });
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setState({ kind: 'error', message: e.message });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 派生：当前任务列表（加载/错误时为空数组）
+  const tasks: TaskListItem[] = state.kind === 'ok' ? state.tasks : [];
 
   const totalPages = Math.max(1, Math.ceil(tasks.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
+
   const pagedTasks = useMemo(() => {
     const start = (safePage - 1) * PAGE_SIZE;
     return tasks.slice(start, start + PAGE_SIZE);
@@ -41,6 +64,37 @@ export default function App({ tasks }: Props) {
     return pages;
   }, [safePage, totalPages]);
 
+  // 加载 / 错误态
+  if (state.kind === 'loading') {
+    return (
+      <div className="app-container">
+        <div className="page-header">
+          <h1>切片任务管理系统</h1>
+          <p>管理无人机影像切片任务，查看任务进度与详情</p>
+        </div>
+        <div className="loading-tip">⏳ 正在从 OSS 加载任务列表…</div>
+      </div>
+    );
+  }
+  if (state.kind === 'error') {
+    return (
+      <div className="app-container">
+        <div className="page-header">
+          <h1>切片任务管理系统</h1>
+          <p>管理无人机影像切片任务，查看任务进度与详情</p>
+        </div>
+        <div className="error-tip">
+          ❌ 加载任务列表失败：{state.message}
+          <br />
+          <small>
+            数据源：
+            <code>https://flash-map-web.oss-cn-beijing.aliyuncs.com/data/tasks/tasks.json</code>
+          </small>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="app-container">
       <div className="page-header">
@@ -65,10 +119,10 @@ export default function App({ tasks }: Props) {
           <tbody>
             {pagedTasks.map((task) => {
               const status = getStatusInfo(task.status);
-              const region = `${task.province} / ${task.city} / ${task.county}${
-                task.town ? ' / ' + task.town : ''
+              const region = `${task.region.province} / ${task.region.city} / ${task.region.county}${
+                task.region.town ? ' / ' + task.region.town : ''
               }`;
-              const zoom = getZoomRange(task);
+              const zoom = task.zoomRange;
               return (
                 <tr key={task.id}>
                   <td className="col-name">{task.name}</td>

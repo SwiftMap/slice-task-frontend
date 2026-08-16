@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl, { Map as MaplibreMap, StyleSpecification } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Protocol } from 'pmtiles';
-import { getTaskById, type Task, getStatusInfo } from './data/tasks';
+import {
+  fetchTasksList,
+  fetchTaskDetail,
+  getStatusInfo,
+  type Task,
+} from './data/api';
 
 // 注册 PMTiles 协议（让 maplibre-gl 能直接加载 .pmtiles 瓦片）
 let protocolRegistered = false;
@@ -64,14 +69,55 @@ function buildStyle(center: [number, number]): StyleSpecification {
   };
 }
 
+type DetailState =
+  | { kind: 'loading'; detailUrl?: string }
+  | { kind: 'ok'; task: Task }
+  | { kind: 'error'; detailUrl?: string; message: string };
+
 export default function TaskDetail() {
   const taskId = getUrlParameter('id');
-  const [task] = useState<Task | null>(() => getTaskById(taskId));
   const [selectedVillage, setSelectedVillage] = useState<string>('');
+  const [state, setState] = useState<DetailState>({ kind: 'loading' });
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MaplibreMap | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const [mapReady, setMapReady] = useState(false);
+
+  // 1. 拉取任务详情：fetch list → 找到当前 id 的 detailUrl → fetch detail
+  useEffect(() => {
+    if (!taskId) {
+      setState({ kind: 'error', message: 'URL 缺少 id 参数' });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await fetchTasksList();
+        if (cancelled) return;
+        const item = list.find((t) => t.id === taskId);
+        if (!item) {
+          setState({
+            kind: 'error',
+            message: `任务列表里没找到 id=${taskId} 的任务`,
+          });
+          return;
+        }
+        const detail = await fetchTaskDetail(item.detailUrl);
+        if (cancelled) return;
+        setState({ kind: 'ok', task: detail });
+      } catch (e: unknown) {
+        if (cancelled) return;
+        const msg = e instanceof Error ? e.message : String(e);
+        setState({ kind: 'error', message: msg });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [taskId]);
+
+  // 2. 加载地图（拿到 task 之后）
+  const task = state.kind === 'ok' ? state.task : null;
 
   useEffect(() => {
     if (!task || !mapContainerRef.current) return;
@@ -154,6 +200,7 @@ export default function TaskDetail() {
       }
       map.remove();
       mapRef.current = null;
+      setMapReady(false);
     };
   }, [task?.id]);
 
@@ -297,6 +344,41 @@ export default function TaskDetail() {
       }
     })();
   }, [selectedVillage, mapReady, task]);
+
+  // ===== 渲染 =====
+  if (state.kind === 'loading') {
+    return (
+      <div className="detail-app">
+        <div className="detail-header">
+          <h1>切片任务详情</h1>
+          <a className="btn" href="./index.html">
+            ← 返回任务列表
+          </a>
+        </div>
+        <div className="loading-tip">⏳ 正在从 OSS 加载任务详情（id={taskId}）…</div>
+      </div>
+    );
+  }
+
+  if (state.kind === 'error') {
+    return (
+      <div className="detail-app">
+        <div className="detail-header">
+          <h1>切片任务详情</h1>
+          <a className="btn" href="./index.html">
+            ← 返回任务列表
+          </a>
+        </div>
+        <div className="error-tip">
+          ❌ 加载任务详情失败：{state.message}
+          <br />
+          <small>
+            数据源：<code>tasks.json</code> + <code>{state.detailUrl ?? '(未找到 detailUrl)'}</code>
+          </small>
+        </div>
+      </div>
+    );
+  }
 
   if (!task) {
     return (
