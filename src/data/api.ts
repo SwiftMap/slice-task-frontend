@@ -9,6 +9,11 @@ export interface Village {
   pmtilesUrl: string;
   minZoom?: number;
   maxZoom?: number;
+  /** 村界 polygon (GeoJSON Polygon)，用于前端 mask 裁切 */
+  polygon?: {
+    type: string;
+    coordinates: any;
+  };
 }
 
 export interface Task {
