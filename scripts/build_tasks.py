@@ -27,6 +27,9 @@ OUTPUT_DIR = Path('/data/oss_build/tasks')
 # 列表 JSON 在 OSS 上的根 URL（前端 fetch 用）
 LIST_BASE_URL = 'https://flash-map-web.oss-cn-beijing.aliyuncs.com/data/tasks'
 
+# TIF → 村庄 polygon 映射（gen_tif_village_map.py 生成：按影像中心村匹配）
+VILLAGE_MAP_PATH = Path('/data/tif_village_map.json')
+
 
 def parse_mock_tasks(ts_content: str) -> list:
     """保留备用，目前不再使用。"""
@@ -101,7 +104,20 @@ def build_list(task: dict) -> dict:
 
 
 def build_detail(task: dict) -> dict:
-    """详情项（完整，含 villages 数组）。"""
+    """详情项（完整，含 villages 数组 + polygon 注入）。"""
+    task = dict(task)
+    if VILLAGE_MAP_PATH.exists():
+        with open(VILLAGE_MAP_PATH, encoding='utf-8') as f:
+            vmap = json.load(f)
+        villages = []
+        for v in task.get('villages', []):
+            v = dict(v)
+            info = vmap.get(v['id'])
+            if info:
+                v['polygon'] = info['polygon']
+                v['villageName'] = info['name']
+            villages.append(v)
+        task['villages'] = villages
     return task
 
 

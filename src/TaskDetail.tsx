@@ -18,16 +18,50 @@ function ensurePMTilesProtocol() {
   protocolRegistered = true;
 }
 
+/**
+ * 构造单村挖洞 mask：外环 = 影像 bounds 外扩，内环 = 该村 polygon 所有环（反转方向）。
+ * fill nonzero 规则：村界外盖背景色，村界内透出影像。
+ */
+function buildMaskGeometry(
+  polygon: { type: string; coordinates: any },
+  imgBounds: [number, number, number, number]
+) {
+  // 收集该村所有环（Polygon / MultiPolygon），反转方向用于挖洞
+  const rings: number[][][] = [];
+  const polys =
+    polygon.type === 'Polygon' ? [polygon.coordinates] : polygon.coordinates;
+  for (const poly of polys as any[]) {
+    for (const ring of poly as number[][][]) {
+      rings.push([...ring].reverse());
+    }
+  }
+  // 外环 = 影像 bounds 外扩（保证覆盖影像超出村界的部分）
+  const [minLon, minLat, maxLon, maxLat] = imgBounds;
+  const pad = 0.01; // ~1km
+  const outer = [
+    [minLon - pad, minLat - pad],
+    [maxLon + pad, minLat - pad],
+    [maxLon + pad, maxLat + pad],
+    [minLon - pad, maxLat + pad],
+    [minLon - pad, minLat - pad],
+  ];
+  return {
+    type: 'Feature' as const,
+    properties: {},
+    geometry: {
+      type: 'Polygon' as const,
+      coordinates: [outer, ...rings],
+    },
+  };
+}
+
 // 不需要天地图底图：用户要求只看无人机影像（2026-08-16）
 // 底图请求 403（token 失效），且用户明确不需要底图。
-// 地图只显示：村界线 + 无人机影像（raster layer，被村界 mask 裁剪）
+// 地图只显示：村界线 + 无人机影像（raster layer，被选中村庄的边界 mask 裁剪）
 //
-// 村外遮罩 mask（2026-08-16）：
-// village_mask.geojson = 挖洞多边形（外环大矩形 + 所有村界环内环），
+// 单村 mask（2026-08-16）：选中哪个村庄，就用哪个村庄的边界做 mask。
+// 挖洞 fill：外环 = 影像 bounds 外扩，内环 = 该村 polygon（反转方向），
 // fill nonzero 规则：村界外盖背景深色，村界内透出影像。
-// 任意 raster layer 都插在 mask 之下 → 任意影像都被村界裁剪。
-const VILLAGE_MASK_URL =
-  'https://flash-map-web.oss-cn-beijing.aliyuncs.com/data/village_mask.geojson';
 const BG_COLOR = '#0e1420';
 
 function buildStyle(center: [number, number]): StyleSpecification {
@@ -112,7 +146,7 @@ export default function TaskDetail() {
     map.addControl(new maplibregl.NavigationControl(), 'top-right');
     map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
 
-    map.on('load', async () => {
+    map.on('load', () => {
 // 添加村界矢量（PMTiles）- 参考 dronemap helper.ts 第92-110行
           // source-layer 'cunjie' 是 bianjie.pmtiles 的实际图层名
           if (task.boundaryPmtilesUrl) {
@@ -161,33 +195,6 @@ export default function TaskDetail() {
               console.warn('村界加载失败:', e);
             }
           }
-
-          // 村外遮罩 mask：挖洞 fill（村界外盖背景色，村界内透出影像）
-          // 图层顺序：bg → raster(影像) → mask → 村界线 → 村名
-          // raster 动态添加时用 beforeId='village-mask-fill' 插到 mask 之下
-          try {
-            const maskResp = await fetch(VILLAGE_MASK_URL, { cache: 'no-cache' });
-            if (maskResp.ok) {
-              const maskData = await maskResp.json();
-              map.addSource('village-mask', { type: 'geojson', data: maskData });
-              map.addLayer(
-                {
-                  id: 'village-mask-fill',
-                  type: 'fill',
-                  source: 'village-mask',
-                  paint: { 'fill-color': BG_COLOR, 'fill-opacity': 1 },
-                },
-                map.getLayer('village-boundary-line')
-                  ? 'village-boundary-line'
-                  : undefined
-              );
-              console.log('村外遮罩 mask 已加载');
-            } else {
-              console.warn(`村外遮罩加载失败: HTTP ${maskResp.status}`);
-            }
-          } catch (e) {
-            console.warn('村外遮罩加载失败（影像将不裁剪）:', e);
-          }
       setMapReady(true);
     });
 
@@ -232,6 +239,13 @@ export default function TaskDetail() {
     }
     if (map.getSource(`${sourceId}-mask`)) {
       map.removeSource(`${sourceId}-mask`);
+    }
+    // 移除旧的单村 mask（选中村变化时重建）
+    if (map.getLayer('village-mask-fill')) {
+      map.removeLayer('village-mask-fill');
+    }
+    if (map.getSource('village-mask')) {
+      map.removeSource('village-mask');
     }
     // 移除旧的 custom imagery layer
     if (map.getLayer('village-imagery')) {
@@ -291,13 +305,38 @@ export default function TaskDetail() {
       }
 
       // 添加 raster 源（用 pmtiles:// 协议，和村界 PMTiles 同款可靠加载方式）
-      // 图层顺序：背景(bg) → 影像(raster) → mask(村外遮罩) → 村界line → 村名label
-      // raster 必须插在 mask 之下：村界外影像被 mask 盖住，村界内透出
-      const beforeMaskId = map.getLayer('village-mask-fill')
-        ? 'village-mask-fill'
-        : map.getLayer('village-boundary-line')
-          ? 'village-boundary-line'
-          : undefined;
+      // 图层顺序：背景(bg) → 影像(raster) → mask(选中村边界遮罩) → 村界line → 村名label
+      // 1) 先添加单村 mask（挖洞 fill：村界外盖背景色，村界内透出影像）
+      // 2) raster 插在 mask 之下 → 村界外影像被 mask 盖住
+      let beforeMaskId = map.getLayer('village-boundary-line')
+        ? 'village-boundary-line'
+        : undefined;
+      if (village.polygon && minLon !== maxLon && minLat !== maxLat) {
+        try {
+          const maskFeature = buildMaskGeometry(village.polygon, [
+            minLon,
+            minLat,
+            maxLon,
+            maxLat,
+          ]);
+          map.addSource('village-mask', {
+            type: 'geojson',
+            data: { type: 'FeatureCollection', features: [maskFeature] },
+          });
+          map.addLayer(
+            {
+              id: 'village-mask-fill',
+              type: 'fill',
+              source: 'village-mask',
+              paint: { 'fill-color': BG_COLOR, 'fill-opacity': 1 },
+            },
+            beforeMaskId
+          );
+          beforeMaskId = 'village-mask-fill'; // raster 插到 mask 之下
+        } catch (e) {
+          console.warn('单村 mask 添加失败（影像将不裁剪）:', e);
+        }
+      }
       try {
         map.addSource(sourceId, {
           type: 'raster',

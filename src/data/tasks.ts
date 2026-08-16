@@ -17,6 +17,10 @@ export interface Village {
   pmtilesUrl: string;
   minZoom?: number;
   maxZoom?: number;
+  /** 村界 polygon (GeoJSON)，build_tasks.py 按影像中心村自动注入 */
+  polygon?: { type: string; coordinates: any };
+  /** 真实村名（如 tif_5 → 哈力拜村） */
+  villageName?: string;
 }
 
 export interface Task {
