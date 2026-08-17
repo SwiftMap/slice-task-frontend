@@ -14,6 +14,8 @@ export interface Village {
     type: string;
     coordinates: any;
   };
+  /** 真实村名（如 tif_5 → 哈力拜村） */
+  villageName: string;
 }
 
 export interface Task {
