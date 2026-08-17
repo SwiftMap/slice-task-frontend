@@ -235,6 +235,27 @@ export default function TaskDetail() {
     const village = task.villages.find((v) => v.id === selectedVillage);
     if (!village) return;
 
+    // 清掉所有 village-* 相关 layer/source（防止切换村庄时旧 pmtiles 累加显示）
+    const style = map.getStyle();
+    const allSourceIds = Object.keys(style.sources);
+    for (const sid of allSourceIds) {
+      if (sid.startsWith('village-')) {
+        // 删所有以这个 source 为 id 的 layer
+        const layers = map.getStyle().layers;
+        for (const ly of layers) {
+          if ((ly as any).source === sid) {
+            try { map.removeLayer(ly.id); } catch {}
+          }
+        }
+        try { map.removeSource(sid); } catch {}
+      }
+    }
+    // 清旧 marker
+    if (markerRef.current) {
+      markerRef.current.remove();
+      markerRef.current = null;
+    }
+
     const sourceId = `village-${village.id}`;
     // 移除旧的 raster layer + source（如果有）
     if (map.getLayer(`${sourceId}-raster`)) {
@@ -518,7 +539,7 @@ export default function TaskDetail() {
               <option value="">-- 请选择村庄 --</option>
               {task.villages.map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.name}
+                  {v.villageName ?? v.name ?? v.id}
                 </option>
               ))}
             </select>
