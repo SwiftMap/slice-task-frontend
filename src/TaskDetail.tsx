@@ -154,6 +154,8 @@ export default function TaskDetail() {
                   type: 'line',
                   source: 'village-boundary',
                   'source-layer': 'cunjie',
+                  minzoom: 0,
+                  maxzoom: 15, // bianjie.pmtiles 重新生成到 z15 (2026-08-18)
                   paint: {
                     'line-color': '#e64009ff',
                     'line-width': 2,
@@ -167,6 +169,8 @@ export default function TaskDetail() {
                     type: 'symbol',
                     source: 'village-boundary',
                     'source-layer': 'cunjie',
+                    minzoom: 0,
+                    maxzoom: 15, // 同上
                     layout: {
                       'text-field': ['get', 'name'],
                       'text-size': 11,
