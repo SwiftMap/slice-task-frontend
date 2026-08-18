@@ -122,4 +122,22 @@ export const mockTasks: Task[] = [
     ],
     zoomRange: '12-20',
   },
+  {
+    id: 'liangshan_zhanglou',
+    name: '济宁梁山县杨营镇张楼村',
+    province: '山东省',
+    city: '济宁市',
+    county: '梁山县',
+    town: '杨营镇',
+    taskTime: '2026-08-08',
+    villageCount: 1,
+    totalArea: 3,
+    status: 'completed',
+    center: [115.968, 35.853],
+    boundaryPmtilesUrl: BOUNDARY_PMTILES_URL,
+    villages: [
+      { id: '张楼村', name: '张楼村', villageName: '张楼村', pmtilesUrl: 'https://flash-map-web.oss-cn-beijing.aliyuncs.com/data/villages/SD_JN_LS_YYC_Zhanglou_2b78c34a_20260814.pmtiles', minZoom: 12, maxZoom: 21 },
+    ],
+    zoomRange: '12-21',
+  },
 ];
