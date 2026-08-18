@@ -44,13 +44,14 @@ function buildStyle(_center: [number, number]): StyleSpecification {
         type: 'raster',
         tiles: TIANDITU_IMG_TILES,
         tileSize: 256,
-        maxzoom: 18,
+        // 不设 maxzoom：让天地图服务端自动控制（实际 maxzoom=18）
+        // 参照 dronemap helper.ts:39-46
       },
       'tianditu-cva': {
         type: 'raster',
         tiles: TIANDITU_CVA_TILES,
         tileSize: 256,
-        maxzoom: 18,
+        // 同上
       },
     },
     layers: [
@@ -58,15 +59,13 @@ function buildStyle(_center: [number, number]): StyleSpecification {
         id: 'tianditu-img',
         type: 'raster',
         source: 'tianditu-img',
-        minzoom: 0,
-        maxzoom: 22,
+        // 不设 zoom 范围：让 source 服务端 maxzoom 自动控制
       },
       {
         id: 'tianditu-cva',
         type: 'raster',
         source: 'tianditu-cva',
-        minzoom: 0,
-        maxzoom: 22,
+        // 同上
       },
     ],
     glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
@@ -154,8 +153,8 @@ export default function TaskDetail() {
                   type: 'line',
                   source: 'village-boundary',
                   'source-layer': 'cunjie',
-                  minzoom: 0,
-                  maxzoom: 15, // bianjie.pmtiles 重新生成到 z15 (2026-08-18)
+                  // 不设 minzoom/maxzoom：让 source 的 PMTiles 实际 zoom 范围自动控制
+                  // 参照 dronemap helper.ts:60-75（base-map / bianjie-layer 都不设）
                   paint: {
                     'line-color': '#e64009ff',
                     'line-width': 2,
@@ -169,8 +168,7 @@ export default function TaskDetail() {
                     type: 'symbol',
                     source: 'village-boundary',
                     'source-layer': 'cunjie',
-                    minzoom: 0,
-                    maxzoom: 15, // 同上
+                    // 同上：不设 zoom 范围
                     layout: {
                       'text-field': ['get', 'name'],
                       'text-size': 11,
@@ -327,8 +325,7 @@ export default function TaskDetail() {
             id: `${sourceId}-raster`,
             type: 'raster',
             source: sourceId,
-            minzoom: 12, // minzoom 12 起才显示影像，低 zoom 让天地图底图显示
-            maxzoom: 22,
+            minzoom: 12, // 低 zoom 让天地图底图显示；maxzoom 由 source 自动控制（z21）
             paint: { 'raster-opacity': 1 },
           },
           beforeId
