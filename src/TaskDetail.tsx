@@ -19,71 +19,54 @@ function ensurePMTilesProtocol() {
 }
 
 /**
- * 构造单村挖洞 mask：外环 = polygon bbox 外扩（保证覆盖该村及周边背景），
- * 内环 = 该村 polygon 所有环（反转方向）。fill nonzero 规则：村界外盖背景色，村界内透出影像。
- *
- * 设计原则（2026-08-17）：外环用 polygon 自身 bbox，不再依赖 PMTiles header bounds
- * （header bounds 受 tile-snapping 影响，且不同 TIF bounds 差异大，统一用村 bbox 更稳）。
+ * mask 已移除（2026-08-18）：用户要求正常显示天地图底图，不再挖洞裁剪影像。
+ * 之前 buildMaskGeometry() 用于构造 polygon bbox 外扩 + 反转环挖洞 fill，
+ * 现已废弃。地图改回正常三层：底图 + 村界 + 影像 + 村名 label。
  */
-function buildMaskGeometry(polygon: { type: string; coordinates: any }) {
-  // 1. 收集该村所有环（Polygon / MultiPolygon），反转方向用于挖洞
-  const rings: number[][][] = [];
-  const polys =
-    polygon.type === 'Polygon' ? [polygon.coordinates] : polygon.coordinates;
-  // 2. 同时算 polygon bbox（外环用）
-  let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
-  const collect = (coord: number[][]) => {
-    for (const [lon, lat] of coord) {
-      if (lon < minLon) minLon = lon;
-      if (lat < minLat) minLat = lat;
-      if (lon > maxLon) maxLon = lon;
-      if (lat > maxLat) maxLat = lat;
-    }
-  };
-  for (const poly of polys as any[]) {
-    for (const ring of poly as number[][][]) {
-      rings.push([...ring].reverse());
-      collect(ring as number[][]);
-    }
-  }
-  // 3. 外环 = polygon bbox 外扩 0.02°（~2km，保证 mask 覆盖屏幕 + 影像外溢部分）
-  const pad = 0.02;
-  const outer = [
-    [minLon - pad, minLat - pad],
-    [maxLon + pad, minLat - pad],
-    [maxLon + pad, maxLat + pad],
-    [minLon - pad, maxLat + pad],
-    [minLon - pad, minLat - pad],
-  ];
-  return {
-    type: 'Feature' as const,
-    properties: {},
-    geometry: {
-      type: 'Polygon' as const,
-      coordinates: [outer, ...rings],
-    },
-  };
-}
 
-// 不需要天地图底图：用户要求只看无人机影像（2026-08-16）
-// 底图请求 403（token 失效），且用户明确不需要底图。
-// 地图只显示：村界线 + 无人机影像（raster layer，被选中村庄的边界 mask 裁剪）
-//
-// 单村 mask（2026-08-16）：选中哪个村庄，就用哪个村庄的边界做 mask。
-// 挖洞 fill：外环 = 影像 bounds 外扩，内环 = 该村 polygon（反转方向），
-// fill nonzero 规则：村界外盖背景深色，村界内透出影像。
-const BG_COLOR = '#0e1420';
+// 天地图底图配置（用户偏好：国内必用天地图，不用 OSM）
+const TIANDITU_TOKEN = 'b88bfb160c81dab8d9d20aaa74846360';
+const TIANDITU_SUBDOMAINS = [1, 2, 3, 4, 5, 6, 7];
+const TIANDITU_IMG_TILES = TIANDITU_SUBDOMAINS.map(
+  (i) => `https://t${i}.tianditu.gov.cn/DataServer?T=img_w&X={x}&Y={y}&L={z}&tk=${TIANDITU_TOKEN}`
+);
+const TIANDITU_CVA_TILES = TIANDITU_SUBDOMAINS.map(
+  (i) => `https://t${i}.tianditu.gov.cn/DataServer?T=cva_w&X={x}&Y={y}&L={z}&tk=${TIANDITU_TOKEN}`
+);
 
-function buildStyle(center: [number, number]): StyleSpecification {
+// 地图只显示：天地图底图(img+cva) + 村界线 + 无人机影像 + 村名 label
+// 2026-08-18 用户明确要求：去掉 mask，正常显示天地图 + 村界 + 影像
+function buildStyle(_center: [number, number]): StyleSpecification {
   return {
     version: 8,
-    // 无底图源；深色背景，村外区域显示深色，无人机影像更突出
-    sources: {},
+    sources: {
+      'tianditu-img': {
+        type: 'raster',
+        tiles: TIANDITU_IMG_TILES,
+        tileSize: 256,
+        maxzoom: 18,
+      },
+      'tianditu-cva': {
+        type: 'raster',
+        tiles: TIANDITU_CVA_TILES,
+        tileSize: 256,
+        maxzoom: 18,
+      },
+    },
     layers: [
       {
-        id: 'bg',
-        type: 'background',
-        paint: { 'background-color': '#0e1420' },
+        id: 'tianditu-img',
+        type: 'raster',
+        source: 'tianditu-img',
+        minzoom: 0,
+        maxzoom: 22,
+      },
+      {
+        id: 'tianditu-cva',
+        type: 'raster',
+        source: 'tianditu-cva',
+        minzoom: 0,
+        maxzoom: 22,
       },
     ],
     glyphs: 'https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf',
@@ -257,26 +240,12 @@ export default function TaskDetail() {
     }
 
     const sourceId = `village-${village.id}`;
-    // 移除旧的 raster layer + source（如果有）
+    // 移除旧的 raster layer + source（切换村庄时）
     if (map.getLayer(`${sourceId}-raster`)) {
       map.removeLayer(`${sourceId}-raster`);
     }
     if (map.getSource(sourceId)) {
       map.removeSource(sourceId);
-    }
-    // 移除旧的 mask layer（村外灰色覆盖）—— 已被 custom WebGL layer 替代
-    if (map.getLayer(`${sourceId}-mask`)) {
-      map.removeLayer(`${sourceId}-mask`);
-    }
-    if (map.getSource(`${sourceId}-mask`)) {
-      map.removeSource(`${sourceId}-mask`);
-    }
-    // 移除旧的单村 mask（选中村变化时重建）
-    if (map.getLayer('village-mask-fill')) {
-      map.removeLayer('village-mask-fill');
-    }
-    if (map.getSource('village-mask')) {
-      map.removeSource('village-mask');
     }
     // 移除旧的 custom imagery layer
     if (map.getLayer('village-imagery')) {
@@ -336,33 +305,11 @@ export default function TaskDetail() {
       }
 
       // 添加 raster 源（用 pmtiles:// 协议，和村界 PMTiles 同款可靠加载方式）
-      // 图层顺序：背景(bg) → 影像(raster) → mask(选中村边界遮罩) → 村界line → 村名label
-      // 1) 先添加单村 mask（挖洞 fill：村界外盖背景色，村界内透出影像）
-      // 2) raster 插在 mask 之下 → 村界外影像被 mask 盖住
-      let beforeMaskId = map.getLayer('village-boundary-line')
-        ? 'village-boundary-line'
+      // 图层顺序：天地图底图(img/cva) → 村界line → 无人机影像(raster) → 村名label
+      // raster 插在村界线之上 → 让影像盖住村界线显示（村界只在村外侧仍可见）
+      const beforeId = map.getLayer('village-boundary-label')
+        ? 'village-boundary-label'
         : undefined;
-      if (village.polygon) {
-        try {
-          const maskFeature = buildMaskGeometry(village.polygon);
-          map.addSource('village-mask', {
-            type: 'geojson',
-            data: { type: 'FeatureCollection', features: [maskFeature] },
-          });
-          map.addLayer(
-            {
-              id: 'village-mask-fill',
-              type: 'fill',
-              source: 'village-mask',
-              paint: { 'fill-color': BG_COLOR, 'fill-opacity': 1 },
-            },
-            beforeMaskId
-          );
-          beforeMaskId = 'village-mask-fill'; // raster 插到 mask 之下
-        } catch (e) {
-          console.warn('单村 mask 添加失败（影像将不裁剪）:', e);
-        }
-      }
       try {
         map.addSource(sourceId, {
           type: 'raster',
@@ -375,11 +322,11 @@ export default function TaskDetail() {
             id: `${sourceId}-raster`,
             type: 'raster',
             source: sourceId,
-            minzoom: 0,
+            minzoom: 12, // minzoom 12 起才显示影像，低 zoom 让天地图底图显示
             maxzoom: 22,
             paint: { 'raster-opacity': 1 },
           },
-          beforeMaskId
+          beforeId
         );
       } catch (e) {
         console.warn('影像图层加载失败:', e);
