@@ -218,11 +218,12 @@ export default function TaskDetail() {
     const village = task.villages.find((v) => v.id === selectedVillage);
     if (!village) return;
 
-    // 清掉所有 village-* 相关 layer/source（防止切换村庄时旧 pmtiles 累加显示）
+    // 清掉所有 village-<村名> 相关 layer/source（防止切换村庄时旧 pmtiles 累加显示）
+    // 注意：保留 village-boundary（村界线）和 village-boundary-line/label（村界名称）
     const style = map.getStyle();
     const allSourceIds = Object.keys(style.sources);
     for (const sid of allSourceIds) {
-      if (sid.startsWith('village-')) {
+      if (sid.startsWith('village-') && sid !== 'village-boundary') {
         // 删所有以这个 source 为 id 的 layer
         const layers = map.getStyle().layers;
         for (const ly of layers) {
